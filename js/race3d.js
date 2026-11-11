@@ -33,12 +33,13 @@ class RaceView {
         <div class="rc-btns">
           <button class="rc-btn" data-rc="voice"></button>
           <button class="rc-btn" data-rc="mute"></button>
-          <button class="rc-btn" data-rc="skip">スキップ ⏭</button>
+          <button class="rc-btn" data-rc="menu">スキップ ⏭</button>
         </div>
+        <div class="rc-skipmenu"></div>
         <div class="rc-result"></div>
       </div>`;
     const q = (s) => root.querySelector(s);
-    this.el = { canvas: q('.rc-canvas'), title: q('.rc-title'), remain: q('.rc-remain'), order: q('.rc-order'), map: q('.rc-map'), intro: q('.rc-intro'), banner: q('.rc-banner'), caption: q('.rc-caption'), result: q('.rc-result'), btns: q('.rc-btns') };
+    this.el = { canvas: q('.rc-canvas'), title: q('.rc-title'), remain: q('.rc-remain'), order: q('.rc-order'), map: q('.rc-map'), intro: q('.rc-intro'), banner: q('.rc-banner'), caption: q('.rc-caption'), result: q('.rc-result'), btns: q('.rc-btns'), menu: q('.rc-skipmenu') };
     this.lowSpec = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (window.matchMedia && matchMedia('(pointer:coarse)').matches);
     const r = this.renderer = new THREE.WebGLRenderer({ canvas: this.el.canvas, antialias: true, powerPreference: 'high-performance' });
     this.pr = Math.min(window.devicePixelRatio || 1, 2);
@@ -69,7 +70,11 @@ class RaceView {
       const b = e.target.closest('[data-rc]'); if (!b) return;
       if (b.dataset.rc === 'mute') { AU.setMuted(!AU.isMuted()); this.syncBtns(); }
       if (b.dataset.rc === 'voice') { AU.setVoice(!AU.isVoiceOn()); this.syncBtns(); }
-      if (b.dataset.rc === 'skip') this.skip();
+      if (b.dataset.rc === 'menu') this.toggleSkipMenu();
+    });
+    this.el.menu.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-to]'); if (!b) return;
+      this.seekTo(b.dataset.to);
     });
     this.el.result.addEventListener('click', (e) => {
       const b = e.target.closest('[data-rc]'); if (!b) return;
@@ -130,6 +135,7 @@ class RaceView {
     this.el.banner.className = 'rc-banner'; this.el.caption.textContent = ''; this.el.caption.classList.remove('show');
     this.el.intro.innerHTML = ''; this.el.intro.classList.remove('show');
     this.el.btns.style.display = '';
+    this.el.menu.classList.remove('show');
     this.root.classList.remove('finished');
 
     this.state = 'intro'; this.real = 0; this.raceT = 0; this.timeScale = 1; this.cueIdx = 0;
@@ -159,9 +165,53 @@ class RaceView {
     if (res) res();
   }
 
+  // どこまで飛ばすかを選ぶ（すでに過ぎた場面は出さない）
+  toggleSkipMenu() {
+    const m = this.el.menu;
+    if (m.classList.contains('show')) { m.classList.remove('show'); return; }
+    const items = [];
+    const intro = this.state === 'intro', run = this.state === 'run', Tw = this.plan.Tw;
+    if (intro && this.real < INTRO.dolly - 0.2) items.push(['gate', '🚪 ゲートインから']);
+    if (intro) items.push(['start', '🏁 スタートから']);
+    if (intro || (run && this.raceT < Tw * 0.4)) items.push(['corner', '↩️ 3〜4コーナーから']);
+    if (intro || (run && this.raceT < Tw * 0.63)) items.push(['straight', '🏇 最終直線から']);
+    if (intro || (run && this.raceT < Tw - 7.5)) items.push(['final', '🔥 ゴール前から']);
+    if (!items.length) { this.skip(); return; }
+    items.push(['result', '📋 結果だけ見る']);
+    m.innerHTML = '<b>どこまで飛ばす？</b>' + items.map(([k, label]) => `<button data-to="${k}">${label}</button>`).join('') + '<button class="ghost" data-to="close">とじる</button>';
+    m.classList.add('show');
+  }
+
+  seekTo(kind) {
+    this.el.menu.classList.remove('show');
+    if (kind === 'close') return;
+    if (kind === 'result') return this.skip();
+    if (this.state !== 'intro' && this.state !== 'run') return;
+    AU.hush(); AU.sfx.stopFanfare();
+    if (kind === 'gate') { if (this.state === 'intro') this.real = Math.max(this.real, INTRO.dolly); return; }
+    if (kind === 'start') { if (this.state === 'intro') this.real = INTRO.hold; return; }
+    const Tw = this.plan.Tw;
+    const t = kind === 'corner' ? Tw * 0.4 : kind === 'straight' ? Tw * 0.648 : Tw - 6.5;
+    if (t <= this.raceT) return;
+    if (this.state === 'intro') {
+      this.state = 'run'; this.real = Math.max(this.real, INTRO.hold);
+      this.track.setGate(true, true);
+      this.el.intro.classList.remove('show'); this.el.order.classList.add('show');
+    }
+    this.raceT = t; this.timeScale = 1;
+    const cues = this.plan.cues;
+    while (this.cueIdx < cues.length && cues[this.cueIdx].t < t) this.cueIdx++;
+    this.el.caption.classList.remove('show'); this.capT = 0;
+    this.el.banner.className = 'rc-banner';
+    this.placeHorses(t - 0.05, 0.016); this.placeHorses(t, 0.05);
+    for (const h of this.horses) { h.speed = this.plan.vc; h.model.gait = 1; }
+    this.shot = ''; this.hudT = 0;      // カメラは即座に切り替え
+  }
+
   skip() {
     if (this.state === 'result') return;
-    AU.hush(); AU.setAmbience(0, 0.15);
+    this.el.menu.classList.remove('show');
+    AU.hush(); AU.sfx.stopFanfare(); AU.setAmbience(0, 0.15);
     // ゴール後の状態へ飛ばす
     this.state = 'after'; this.raceT = this.plan.lastFinish + 2.5; this.afterT = 99; this.timeScale = 1; this.goalShown = true;
     this.placeHorses(this.raceT, 0.016);
@@ -525,6 +575,7 @@ class RaceView {
     this.state = 'result';
     this.root.classList.add('finished');
     this.el.btns.style.display = 'none';
+    this.el.menu.classList.remove('show');
     this.el.caption.classList.remove('show'); this.el.banner.className = 'rc-banner';
     const pl = this.plan;
     const rows = pl.horses.map((h, i) => {

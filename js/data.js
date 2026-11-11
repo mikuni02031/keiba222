@@ -79,8 +79,71 @@ const L = [
 ];
 
 export const LEGENDS = L.map((r, i) => ({
-  id: 'L' + i, name: r[0], rating: r[1], style: r[2], coat: r[3], catch: r[4], bigNige: !!r[5],
+  id: 'L' + i, kind: 'legend', name: r[0], rating: r[1], style: r[2], coat: r[3], catch: r[4], bigNige: !!r[5],
 }));
+
+// プロ野球の助っ人外国人（2020年以降にNPB在籍）の名を冠した馬
+const P = [
+  ['バウアー', 97, 'nige', 'darkbay', 'サイ・ヤング賞右腕'],
+  ['ライデル', 97, 'oikomi', 'black', '絶対的守護神'],
+  ['モイネロ', 96, 'sashi', 'bay', '魔球カーブの左腕'],
+  ['オースティン', 96, 'senko', 'chestnut', 'ハマの大砲'],
+  ['レイエス', 95, 'oikomi', 'darkbay', '規格外のパワー'],
+  ['サンタナ', 95, 'senko', 'bay', '燕の安打製造機'],
+  ['スアレス', 95, 'oikomi', 'black', '160キロの守護神'],
+  ['ソト', 94, 'sashi', 'bay', '2年連続本塁打王'],
+  ['オスナ', 93, 'sashi', 'darkbay', '勝負強い燕の主砲'],
+  ['ポランコ', 93, 'oikomi', 'bay', 'パ・リーグ本塁打王'],
+  ['ビシエド', 92, 'senko', 'darkbay', 'エル・タンケ'],
+  ['デスパイネ', 92, 'oikomi', 'bay', 'キューバの大砲'],
+  ['マクガフ', 91, 'oikomi', 'chestnut', '燕の守護神'],
+  ['グラシアル', 91, 'senko', 'black', '万能のキューバ戦士'],
+  ['バレンティン', 90, 'oikomi', 'darkbay', 'シーズン60本塁打'],
+  ['エスコバー', 90, 'senko', 'bay', '剛腕セットアッパー'],
+  ['マーティン', 90, 'nige', 'bay', '強肩強打'],
+  ['レアード', 90, 'sashi', 'chestnut', 'スシボーイ'],
+  ['ヘルナンデス', 89, 'senko', 'bay', '途中加入の救世主'],
+  ['ポンセ', 88, 'nige', 'chestnut', 'ノーヒットノーラン達成'],
+  ['マルテ', 88, 'senko', 'darkbay', 'ラパンパラ'],
+  ['サンズ', 88, 'nige', 'chestnut', 'ハッピーハンズ'],
+  ['ジョーンズ', 88, 'senko', 'black', '元メジャーのスター'],
+  ['ウィーラー', 87, 'senko', 'bay', 'ムードメーカー'],
+  ['マクブルーム', 87, 'senko', 'chestnut', '鯉の4番'],
+  ['セデーニョ', 87, 'sashi', 'darkbay', '猛牛の大砲'],
+  ['ウォーカー', 86, 'oikomi', 'black', '一発の魅力'],
+  ['マキノン', 86, 'senko', 'bay', '堅実な一塁手'],
+  ['メヒア', 85, 'oikomi', 'darkbay', '獅子の大砲'],
+  ['メルセデス', 85, 'senko', 'bay', '技巧派サウスポー'],
+  ['ノイジー', 84, 'senko', 'chestnut', '強肩の外野手'],
+  ['ミエセス', 80, 'oikomi', 'bay', '愛されキャラ'],
+  ['オドーア', 73, 'nige', 'bay', '開幕前に電撃帰国', true],
+];
+export const SUKETTO = P.map((r, i) => ({
+  id: 'P' + i, kind: 'player', name: r[0], rating: r[1], style: r[2], coat: r[3], catch: r[4], bigNige: !!r[5],
+}));
+
+// プロ野球12球団の名を冠した馬
+const TM = [
+  ['ホークス', 97, 'senko', 'black', '常勝軍団'],
+  ['タイガース', 96, 'sashi', 'chestnut', '六甲おろしが響く'],
+  ['ジャイアンツ', 96, 'senko', 'darkbay', '球界の盟主'],
+  ['ベイスターズ', 94, 'oikomi', 'bay', 'ハマの下剋上'],
+  ['バファローズ', 94, 'sashi', 'darkbay', 'パ・リーグ3連覇'],
+  ['ファイターズ', 93, 'nige', 'white', '新球場の主役'],
+  ['カープ', 91, 'nige', 'chestnut', '鯉のぼりの季節に強い'],
+  ['スワローズ', 91, 'sashi', 'bay', '傘の花が咲く'],
+  ['マリーンズ', 91, 'oikomi', 'grey', '幕張の風に乗る'],
+  ['イーグルス', 89, 'senko', 'darkbay', '東北の翼'],
+  ['ドラゴンズ', 87, 'senko', 'bay', '守り勝つ野球'],
+  ['ライオンズ', 86, 'sashi', 'grey', '獅子奮迅'],
+];
+export const TEAMS = TM.map((r, i) => ({
+  id: 'T' + i, kind: 'team', name: r[0], rating: r[1], style: r[2], coat: r[3], catch: r[4], bigNige: false,
+}));
+
+// 出走候補の全プール
+export const POOL = LEGENDS.concat(SUKETTO, TEAMS);
+export const KIND_LABEL = { legend: '名馬', player: '助っ人', team: '球団', friend: '特別出走' };
 
 // リクエストの特別出走馬（強さ・脚質は毎レース気まぐれ）
 export const FRIENDS = ['カミノ', 'イイダタツヤ', 'サトフカ', 'イッシキ'].map((name, i) => ({
@@ -103,7 +166,7 @@ export const RACE_TYPES = {
   normal: { label: '本命やや優勢', desc: '順当か、波乱か', color: '#1f9d42' },
   mixed: { label: '混戦模様', desc: '上位は横一線', color: '#f48a1c' },
   chaos: { label: '大混戦', desc: 'どの馬にもチャンス', color: '#c2185b' },
-  dream: { label: 'ドリームレース', desc: '歴代最強馬が勢ぞろい', color: '#c9a227' },
+  dream: { label: 'ドリームレース', desc: '最強クラスが勢ぞろい', color: '#c9a227' },
 };
 
 export const RACE_NAMES = [

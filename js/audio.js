@@ -1,5 +1,6 @@
 // 効果音は全て WebAudio で合成（音声ファイル不要）+ 実況の読み上げ
 let ctx = null, master = null, noiseBuf = null;
+let out = null, fanfareBus = null;      // out: 一時的な出力先（ファンファーレ用バス）
 let muted = false;
 try { muted = localStorage.getItem('keibaParty.muted') === '1'; } catch (e) { /* ignore */ }
 let voiceOn = true;
@@ -43,7 +44,7 @@ function tone(freq, t0, dur, type = 'sine', vol = 0.2, slideTo = 0) {
   if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0 + dur);
   g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.012);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  o.connect(g); g.connect(master); o.start(t0); o.stop(t0 + dur + 0.05);
+  o.connect(g); g.connect(out || master); o.start(t0); o.stop(t0 + dur + 0.05);
 }
 function noise(t0, dur, freq, q, vol, type = 'bandpass') {
   if (!ctx) return;
@@ -52,7 +53,7 @@ function noise(t0, dur, freq, q, vol, type = 'bandpass') {
   const g = ctx.createGain();
   g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.008);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  s.connect(f); f.connect(g); g.connect(master); s.start(t0, Math.random()); s.stop(t0 + dur + 0.05);
+  s.connect(f); f.connect(g); g.connect(out || master); s.start(t0, Math.random()); s.stop(t0 + dur + 0.05);
 }
 function brass(freq, t0, dur, vol = 0.12) {
   if (!ctx) return;
@@ -65,7 +66,7 @@ function brass(freq, t0, dur, vol = 0.12) {
     const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = freq; o.detune.value = det;
     o.connect(f); o.start(t0); o.stop(t0 + dur + 0.05);
   }
-  f.connect(g); g.connect(master);
+  f.connect(g); g.connect(out || master);
 }
 
 const N = { G3: 196, C4: 261.6, E4: 329.6, G4: 392, A4: 440, B4: 493.9, C5: 523.3, D5: 587.3, E5: 659.3, F5: 698.5, G5: 784, A5: 880, C6: 1046.5 };
@@ -83,6 +84,7 @@ export const sfx = {
   // オリジナルのファンファーレ
   fanfare() {
     if (!ctx) return 0; const t = ctx.currentTime + 0.05, u = 0.2;
+    fanfareBus = ctx.createGain(); fanfareBus.connect(master); out = fanfareBus;
     const mel = [[N.G4, 0, 1], [N.G4, 1, 1], [N.G4, 2, 1], [N.C5, 3, 2], [N.E5, 5, 2], [N.G5, 7, 3], [N.E5, 10, 1], [N.G5, 11, 4],
       [N.A5, 16, 1], [N.A5, 17, 1], [N.A5, 18, 1], [N.G5, 19, 2], [N.E5, 21, 2], [N.D5, 23, 1], [N.E5, 24, 1], [N.F5, 25, 1], [N.G5, 26, 2], [N.C6, 28, 7]];
     const har = [[N.E4, 0, 3], [N.G4, 3, 2], [N.C5, 5, 2], [N.E5, 7, 3], [N.C5, 10, 1], [N.E5, 11, 4], [N.F5, 16, 3], [N.E5, 19, 2], [N.C5, 21, 2], [N.B4, 23, 3], [N.D5, 26, 2], [N.E5, 28, 7]];
@@ -91,7 +93,12 @@ export const sfx = {
     [[N.C4, 0], [N.C4, 3], [N.C4, 7], [N.C4, 11], [N.C4 * 4 / 3, 16], [N.C4, 21], [N.G3, 23], [N.C4, 28]].forEach(([f, b]) => {
       tone(f / 2, t + b * u, 0.5, 'sine', 0.3, f / 2.2); noise(t + b * u, 0.25, 90, 0.8, 0.25, 'lowpass');
     });
+    out = null;
     return 35 * u;
+  },
+  stopFanfare() {
+    if (!ctx || !fanfareBus) return;
+    fanfareBus.gain.setTargetAtTime(0, ctx.currentTime, 0.06); fanfareBus = null;
   },
   gate() {
     if (!ctx) return; const t = ctx.currentTime;

@@ -1,5 +1,5 @@
 // ゲーム進行とUI
-import { FRAMES, STYLES, FORMS, RACE_TYPES, ENVS, PLAYER_COLORS, COAT_LABEL } from './data.js';
+import { FRAMES, STYLES, FORMS, RACE_TYPES, ENVS, PLAYER_COLORS, COAT_LABEL, KIND_LABEL } from './data.js';
 import * as LG from './logic.js';
 import * as ST from './storage.js';
 import * as AU from './audio.js';
@@ -158,7 +158,7 @@ function startGame() {
 
 function newRace() {
   G.race = LG.genRace(G.turn, G.turns, G.types[G.turn], G.envs[G.turn], G.used);
-  G.used = G.used.concat(G.race.horses.map((h) => h.id)).slice(-40);
+  G.used = G.used.concat(G.race.horses.map((h) => h.id)).slice(-70);
   G.bets = {}; G.betPos = 0; G.results = null; G.phase = 'card';
   G.order = G.players.map((_, i) => (i + G.turn) % G.players.length);
   // 救済金
@@ -191,14 +191,18 @@ function hrow(h, o = {}) {
   const si = o.sel ? o.sel.indexOf(h.num) : -1;
   return `<${tag} class="hrow ${si >= 0 ? 'sel' : ''} ${h.friend ? 'friend' : ''}" ${o.pick ? `data-act="pick" data-num="${h.num}"` : ''}>
     <i class="nb big" style="background:${f.bg};color:${f.fg}">${h.num}</i>
-    <span class="h-main"><b>${esc(h.name)}${h.friend ? '<em>★</em>' : ''}</b>
-      <small><span class="st st-${h.style}">${STYLES[h.style].label}</span><span class="fm fm-${h.form}">${form.label}${form.icon}</span>${o.full ? `<span>${COAT_LABEL[h.coat]}</span>` : ''}</small>
+    <span class="h-main"><b>${esc(h.name)}${kindIcon(h)}</b>
+      <small><span class="st st-${h.style}">${STYLES[h.style].label}</span><span class="fm fm-${h.form}">${form.label}${form.icon}</span>${o.full ? `<span>${COAT_LABEL[h.coat]}</span>${h.kind && h.kind !== 'legend' ? `<span class="kd kd-${h.kind}">${KIND_LABEL[h.kind]}</span>` : ''}` : ''}</small>
       ${o.full ? `<small class="catch">「${esc(h.catch)}」</small>` : ''}
     </span>
     <span class="h-pop p${h.pop}">${h.pop}<small>人気</small></span>
     <span class="h-odds"><b>${h.odds.toFixed(1)}</b><small>勝率 ${(h.p * 100).toFixed(1)}%</small></span>
     ${si >= 0 ? `<span class="mark m${si + 1}">${o.n > 1 ? si + 1 + '着' : '◎'}</span>` : ''}
   </${tag}>`;
+}
+function kindIcon(h) {
+  const k = h.kind || (h.friend ? 'friend' : '');
+  return k === 'friend' ? '<em>★</em>' : k === 'player' ? '<em class="ki">⚾</em>' : k === 'team' ? '<em class="ki">🏟</em>' : '';
 }
 function standings() {
   const ps = G.players.slice().sort((a, b) => b.coins - a.coins);
@@ -237,8 +241,9 @@ function viewHandoff() {
 function betRemain() { return G.players[G.order[G.betPos]].coins - B.slip.reduce((s, b) => s + b.amount, 0); }
 function viewBet(keep) {
   const idx = G.order[G.betPos], p = G.players[idx], r = G.race;
-  if (!B) B = { tab: 'win', sel: [], amount: 0, slip: [] };
+  if (!B) B = { tab: 'win', sel: [], amount: 0, slip: [], mode: 'single', form: { 1: [], 2: [], 3: [] }, mamt: {} };
   const n = BT[B.tab].n, remain = betRemain();
+  const multi = n > 1 && B.mode === 'multi';
   const ready = B.sel.length === n;
   const odds = ready ? LG.betOdds(r, B.tab, B.sel) : 0;
   const prob = ready ? LG.betProb(r, B.tab, B.sel) : 0;
@@ -251,6 +256,8 @@ function viewBet(keep) {
       <div class="bh-r"><small>残りコイン</small><b id="remain">${fmt(remain)}</b></div>
     </header>
     <div class="tabs">${Object.keys(BT).map((k) => `<button class="tab ${B.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}">${BT[k].label}</button>`).join('')}</div>
+    ${n > 1 ? `<div class="modes"><button class="mode ${multi ? '' : 'on'}" data-act="mode" data-v="single">1点ずつ買う</button><button class="mode ${multi ? 'on' : ''}" data-act="mode" data-v="multi">流し・まとめ買い</button></div>` : ''}
+    ${multi ? multiHtml(r, n, remain) : `
     <div class="guide">${guide}<small>${BT[B.tab].hint}</small></div>
     <div class="hlist tight">${r.horses.map((h) => hrow(h, { pick: true, sel: B.sel, n })).join('')}</div>
     <div class="pickbar ${ready ? 'ready' : ''}">
@@ -265,13 +272,63 @@ function viewBet(keep) {
       </div>
       <div class="amt-pay" id="amtPay">${payText(odds)}</div>
     </div>
-    <button class="btn btn-green" id="addBtn" data-act="addBet" ${ready && B.amount > 0 && B.amount <= remain ? '' : 'disabled'}>＋ このベットを追加</button>
+    <button class="btn btn-green" id="addBtn" data-act="addBet" ${ready && B.amount > 0 && B.amount <= remain ? '' : 'disabled'}>＋ このベットを追加</button>`}
     <h3 class="sub">ベット一覧${B.slip.length ? `（合計 ${fmt(total)}）` : ''}</h3>
     <div class="slip">
       ${B.slip.length ? B.slip.map((b, i) => `<div class="slip-row">${betText(b)}<span class="sl-amt">${fmt(b.amount)}<small> × ${LG.fmtOdds(b.odds)}倍</small></span><button class="x" data-act="delBet" data-v="${i}">✕</button></div>`).join('') : '<div class="empty">まだベットがありません</div>'}
     </div>
     <div class="sticky"><button class="btn btn-gold big" data-act="confirmBets">${B.slip.length ? `ベット確定！（${fmt(total)}コイン）` : '見（ケン）で確定'}</button></div>
   </div>`, keep);
+}
+// 流し・フォーメーション: 各着順に置いた馬の全組み合わせ
+function combos() {
+  const n = BT[B.tab].n, f = B.form, out = [];
+  for (const a of f[1]) for (const b of f[2]) {
+    if (a === b) continue;
+    if (n === 2) out.push([a, b]);
+    else for (const c of f[3]) if (c !== a && c !== b) out.push([a, b, c]);
+  }
+  return out.map((sel) => ({ sel, key: sel.join('-'), odds: LG.betOdds(G.race, B.tab, sel) })).sort((x, y) => x.odds - y.odds);
+}
+const MAX_COMBOS = 60;
+const multiTotal = (cs) => cs.reduce((t, c) => t + (B.mamt[c.key] || 0), 0);
+function multiHtml(r, n, remain) {
+  const pos = n === 2 ? [1, 2] : [1, 2, 3];
+  const cs = combos();
+  const over = cs.length > MAX_COMBOS;
+  const total = over ? 0 : multiTotal(cs);
+  const cnt = cs.filter((c) => B.mamt[c.key] > 0).length;
+  let body;
+  if (!cs.length) body = `<div class="pickbar"><div class="pb-empty">1着・2着${n === 3 ? '・3着' : ''}の馬を選ぶと買い目が出ます</div></div>`;
+  else if (over) body = `<div class="pickbar"><div class="pb-empty">${cs.length}点は多すぎます（${MAX_COMBOS}点まで）。馬を減らしてね</div></div>`;
+  else {
+    body = `<div class="cmb-head"><b>${cs.length}<small>点</small></b><span>全点に</span>
+        <button class="chip" data-act="mbulk" data-v="10">+10</button><button class="chip" data-act="mbulk" data-v="50">+50</button><button class="chip" data-act="mbulk" data-v="100">+100</button><button class="chip ghost" data-act="mbulk" data-v="clear">C</button></div>
+      <div class="cmbs">${cs.map((c) => `<label class="cmb">${selBadges(c.sel)}<span class="cmb-odds">${LG.fmtOdds(c.odds)}<small>倍</small></span>
+        <input class="cmb-amt" type="number" inputmode="numeric" pattern="[0-9]*" min="0" data-key="${c.key}" value="${B.mamt[c.key] || ''}" placeholder="0"></label>`).join('')}</div>
+      <div class="amt-pay" id="mTotal">${multiTotalText(total, remain)}</div>
+      <button class="btn btn-green" id="mAddBtn" data-act="addMulti" ${total > 0 && total <= remain ? '' : 'disabled'}>＋ <span id="mCnt">${cnt}</span>点をまとめて追加</button>`;
+  }
+  return `
+    <div class="guide">各着順に置く馬を選ぶ（複数OK）<small>例：1着を1頭・2着を3頭えらぶと3点。点ごとに金額を入れられます</small></div>
+    <div class="flist">
+      <div class="frow fhead"><span class="h-main"></span><span class="ftog">${pos.map((k) => `<button class="ft all" data-act="fall" data-pos="${k}">${k}着 全</button>`).join('')}</span></div>
+      ${r.horses.map((h) => `<div class="frow">${nb(h.num, 'big')}
+        <span class="h-main"><b>${esc(h.name)}${kindIcon(h)}</b><small><span class="fo">${h.odds.toFixed(1)}倍</span><span>${h.pop}人気</span><span class="st st-${h.style}">${STYLES[h.style].label}</span></small></span>
+        <span class="ftog">${pos.map((k) => `<button class="ft p${k} ${B.form[k].includes(h.num) ? 'on' : ''}" data-act="ftog" data-pos="${k}" data-num="${h.num}">${k}着</button>`).join('')}</span></div>`).join('')}
+    </div>
+    ${body}`;
+}
+function multiTotalText(total, remain) {
+  if (total > remain) return `<b class="ng">合計 ${fmt(total)} コイン（${fmt(total - remain)} 足りません）</b>`;
+  return `合計 <b>${fmt(total)}</b> コイン`;
+}
+function onMultiInput(el) {
+  B.mamt[el.dataset.key] = Math.max(0, Math.floor(+el.value || 0));
+  const cs = combos(), total = multiTotal(cs), remain = betRemain();
+  document.getElementById('mTotal').innerHTML = multiTotalText(total, remain);
+  document.getElementById('mAddBtn').disabled = !(total > 0 && total <= remain);
+  document.getElementById('mCnt').textContent = cs.filter((c) => B.mamt[c.key] > 0).length;
 }
 function payText(odds) {
   if (!odds || !B.amount) return '&nbsp;';
@@ -469,6 +526,37 @@ const actions = {
   beginBets() { G.phase = 'handoff'; G.betPos = 0; go(); },
   openBet() { B = null; G.phase = 'bet'; go(); },
   tab(el) { B.tab = el.dataset.v; B.sel = B.sel.slice(0, BT[B.tab].n); viewBet(true); },
+  mode(el) { B.mode = el.dataset.v; viewBet(true); },
+  ftog(el) {
+    const k = +el.dataset.pos, num = +el.dataset.num, arr = B.form[k], i = arr.indexOf(num);
+    if (i >= 0) arr.splice(i, 1); else arr.push(num);
+    AU.sfx.select(); viewBet(true);
+  },
+  fall(el) {
+    const k = +el.dataset.pos;
+    B.form[k] = B.form[k].length === 7 ? [] : [1, 2, 3, 4, 5, 6, 7];
+    viewBet(true);
+  },
+  mbulk(el) {
+    const cs = combos(), v = el.dataset.v;
+    if (v === 'clear') cs.forEach((c) => { B.mamt[c.key] = 0; });
+    else {
+      if (multiTotal(cs) + cs.length * +v > betRemain()) { AU.sfx.error(); return toast('コインが足りません'); }
+      cs.forEach((c) => { B.mamt[c.key] = (B.mamt[c.key] || 0) + +v; });
+    }
+    viewBet(true);
+  },
+  addMulti() {
+    const cs = combos().filter((c) => B.mamt[c.key] > 0), total = multiTotal(cs);
+    if (!cs.length || total > betRemain()) return AU.sfx.error();
+    cs.forEach((c) => {
+      const same = B.slip.find((b) => b.type === B.tab && b.sel.join() === c.sel.join());
+      if (same) same.amount += B.mamt[c.key];
+      else B.slip.push({ type: B.tab, sel: c.sel, amount: B.mamt[c.key], odds: c.odds });
+    });
+    B.form = { 1: [], 2: [], 3: [] }; B.mamt = {};
+    AU.sfx.coin(2); toast(`${cs.length}点を追加しました`); viewBet(true);
+  },
   pick(el) {
     const num = +el.dataset.num, n = BT[B.tab].n, i = B.sel.indexOf(num);
     if (i >= 0) B.sel.splice(i, 1);
@@ -497,7 +585,8 @@ const actions = {
   confirmBets() {
     const p = G.players[G.order[G.betPos]];
     const total = B.slip.reduce((s, b) => s + b.amount, 0);
-    const pending = B.sel.length === BT[B.tab].n && B.amount > 0;
+    const isMulti = BT[B.tab].n > 1 && B.mode === 'multi';
+    const pending = isMulti ? multiTotal(combos()) > 0 : B.sel.length === BT[B.tab].n && B.amount > 0;
     modal(`<h2>${esc(p.name)} のベット確定</h2>
       ${B.slip.length ? `<div class="slip">${B.slip.map((b) => `<div class="slip-row">${betText(b)}<span class="sl-amt">${fmt(b.amount)}<small> × ${LG.fmtOdds(b.odds)}倍</small></span></div>`).join('')}</div><p class="dm-after">合計 <b>${fmt(total)}</b> コイン</p>` : '<p>ベットなし（見）で進みます。いいですか？</p>'}
       ${pending ? '<p class="warn">⚠ 選択中のベットがまだ「追加」されていません</p>' : ''}
@@ -556,10 +645,14 @@ document.addEventListener('click', (e) => {
   AU.unlock();
   const fn = actions[el.dataset.act];
   if (!fn) return;
-  if (!['pick', 'addBet', 'confirmOk', 'drinkOk'].includes(el.dataset.act)) AU.sfx.click();
+  if (!['pick', 'ftog', 'addBet', 'addMulti', 'confirmOk', 'drinkOk'].includes(el.dataset.act)) AU.sfx.click();
   fn(el, e);
 });
-document.addEventListener('input', (e) => { if (e.target.id === 'amt' && B) onAmtInput(e.target); });
+document.addEventListener('input', (e) => {
+  if (!B) return;
+  if (e.target.id === 'amt') onAmtInput(e.target);
+  else if (e.target.classList.contains('cmb-amt')) onMultiInput(e.target);
+});
 modalEl.addEventListener('click', (e) => { if (e.target === modalEl) closeModal(); });
 
 // ───────── 起動 ─────────

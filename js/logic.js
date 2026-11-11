@@ -1,5 +1,5 @@
 // オッズ生成・出走馬選定・着順抽選・払い戻し計算
-import { LEGENDS, FRIENDS, FRIEND_CATCH, FORMS, COATS, RACE_NAMES, FINAL_RACE_NAMES } from './data.js';
+import { POOL, FRIENDS, FRIEND_CATCH, FORMS, COATS, RACE_NAMES, FINAL_RACE_NAMES } from './data.js';
 
 export const RETURN_RATE = 0.9;     // 払戻率
 export const EXOTIC_CAP = 999.9;    // 馬単・3連単の上限倍率
@@ -123,7 +123,7 @@ export function genRace(turn, totalTurns, type, env, usedIds) {
     if (fi >= 0) {
       const f = friends[fi];
       entries.push({
-        id: f.id, name: f.name, friend: true,
+        id: f.id, kind: 'friend', name: f.name, friend: true,
         rating: rint(Math.max(role.min, 80), role.max),
         style: pick(['nige', 'senko', 'sashi', 'oikomi']),
         bigNige: Math.random() < 0.15,
@@ -131,10 +131,10 @@ export function genRace(turn, totalTurns, type, env, usedIds) {
       });
       return;
     }
-    let pool = LEGENDS.filter((h) => h.rating >= role.min && h.rating <= role.max && !taken.has(h.id));
+    let pool = POOL.filter((h) => h.rating >= role.min && h.rating <= role.max && !taken.has(h.id));
     let fresh = pool.filter((h) => !used.has(h.id));
     if (fresh.length) pool = fresh;
-    if (!pool.length) pool = LEGENDS.filter((h) => !taken.has(h.id));
+    if (!pool.length) pool = POOL.filter((h) => !taken.has(h.id));
     const h = pick(pool);
     taken.add(h.id);
     entries.push({ ...h });
@@ -149,7 +149,7 @@ export function genRace(turn, totalTurns, type, env, usedIds) {
   const { probs, odds } = genProbs(type);
   const nums = shuffle([1, 2, 3, 4, 5, 6, 7]);
   const horses = entries.map((e, i) => ({
-    num: nums[i], id: e.id, name: e.name, friend: !!e.friend, style: e.style, bigNige: !!e.bigNige,
+    num: nums[i], id: e.id, kind: e.kind || 'legend', name: e.name, friend: !!e.friend, style: e.style, bigNige: !!e.bigNige,
     coat: e.coat, catch: e.catch, form: e.form, p: probs[i], odds: odds[i], pop: i + 1,
   }));
   horses.sort((a, b) => a.num - b.num);

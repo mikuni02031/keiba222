@@ -329,3 +329,42 @@ button.hrow:active { transform: scale(.985); }
   .rr-box { max-width: 560px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px 8px; }
   .rr-head, .rr-row.r1, .rr-box .btn { grid-column: 1 / -1; }
 }
+
+/* ── 流し・まとめ買い ── */
+.modes { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.mode { min-height: 40px; border-radius: 11px; font-weight: 800; font-size: 14px; color: var(--mut); background: rgba(0, 0, 0, .28); border: 1.5px solid var(--line); }
+.mode.on { background: rgba(245, 197, 66, .2); color: var(--gold2); border-color: var(--gold); }
+.flist { display: flex; flex-direction: column; gap: 5px; }
+.frow { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 8px; border-radius: 12px; background: rgba(0, 0, 0, .3); min-height: 46px; }
+.frow .nb.big { width: 30px; height: 30px; font-size: 17px; }
+.frow .h-main b { font-size: 14px; }
+.frow .h-main small { font-size: 10px; }
+.frow .fo { color: var(--gold2); font-weight: 900; font-size: 12px; }
+.frow.fhead { background: none; min-height: 0; padding-top: 0; padding-bottom: 0; }
+.ftog { display: flex; gap: 5px; flex: none; }
+.ft { width: 46px; height: 38px; border-radius: 10px; font-weight: 900; font-size: 13px; color: var(--mut); background: rgba(0, 0, 0, .35); border: 1.5px solid var(--line); }
+.ft.all { height: 26px; font-size: 10.5px; border-style: dashed; }
+.ft.on.p1 { background: var(--gold); color: #2b1c00; border-color: #fff1bf; }
+.ft.on.p2 { background: #cfd8dc; color: #1c2529; border-color: #fff; }
+.ft.on.p3 { background: #e0a070; color: #2b1705; border-color: #ffd9b8; }
+.ft:active { transform: scale(.93); }
+.h-main .ki { font-style: normal; margin-left: 3px; font-size: .85em; }
+.cmb-head { display: flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800; color: var(--mut); }
+.cmb-head b { font-size: 24px; color: var(--gold2); font-family: Arial, sans-serif; margin-right: auto; }
+.cmb-head b small { font-size: 12px; margin-left: 2px; }
+.cmb-head .chip { min-height: 36px; padding: 2px 10px; font-size: 13.5px; }
+.cmbs { display: flex; flex-direction: column; gap: 5px; }
+.cmb { display: flex; align-items: center; gap: 5px; background: rgba(0, 0, 0, .3); border-radius: 10px; padding: 5px 6px 5px 10px; }
+.cmb-odds { margin-left: auto; font-weight: 900; color: var(--gold2); font-family: Arial, sans-serif; font-size: 15px; white-space: nowrap; }
+.cmb-odds small { font-size: 10px; color: var(--mut); margin-left: 1px; }
+.cmb-amt { width: 84px; height: 38px; border-radius: 9px; border: 1.5px solid var(--gold); background: rgba(0, 0, 0, .4); padding: 0 8px; font-size: 17px; font-weight: 900; text-align: right; outline: 0; }
+.amt-pay .ng { color: #ff8587; font-size: 13px; }
+/* ── スキップメニュー ── */
+.rc-skipmenu { position: absolute; left: 0; right: 0; margin: 0 auto; bottom: calc(58px + env(safe-area-inset-bottom)); width: min(300px, 86vw); display: none; flex-direction: column; gap: 6px; padding: 10px; border-radius: 16px; background: rgba(6, 30, 15, .94); border: 1.5px solid var(--gold); pointer-events: auto; }
+.rc-skipmenu.show { display: flex; animation: pop .18s ease; }
+.rc-skipmenu b { text-align: center; font-size: 12.5px; color: var(--gold2); letter-spacing: .08em; }
+.rc-skipmenu button { min-height: 44px; border-radius: 11px; background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .25); color: #fff; font-weight: 800; font-size: 14.5px; }
+.rc-skipmenu button:active { transform: scale(.97); }
+.rc-skipmenu button.ghost { background: none; border-color: transparent; color: var(--mut); min-height: 34px; font-size: 13px; }
+.kd { border-radius: 5px; padding: 0 5px; font-weight: 800; color: #fff; }
+.kd-player { background: #0f766e; } .kd-team { background: #9d174d; } .kd-friend { background: #a16207; }
