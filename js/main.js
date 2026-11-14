@@ -15,6 +15,7 @@ let G = null;                 // 進行中のゲーム
 let S = null;                 // 設定の下書き
 let B = null;                 // ベット画面の状態
 let D = null;                 // 飲んだよモーダルの状態
+let DB = null;                // 借金モーダルの状態
 let racePromise = null;
 
 // ───────── 共通部品 ─────────
@@ -81,10 +82,11 @@ function howto() {
     <h2>あそびかた</h2>
     <ol class="howto">
       <li>人数・初期コイン・レース数を決める</li>
-      <li>出馬表を見て、スマホを回しながら1人ずつベット<br><small>単勝＝1着 / 馬単＝1→2着 / 3連単＝1→2→3着（順番どおり）</small></li>
+      <li>出馬表を見て、スマホを回しながら1人ずつベット<br><small>単勝＝1着 / 複勝＝2着以内 / 馬単＝1→2着 / 3連単＝1→2→3着（順番どおり）</small></li>
       <li>全員ベットしたら3Dレース！</li>
       <li>的中したら「賭け金 × オッズ」が払い戻し</li>
       <li>全レース終了後、<b>(トップ − ベベ) ÷ ${LG.COINS_PER_DRINK}</b> 杯をベベが飲む<br><small>${LG.DRINKS_PER_VODKA}杯でウォッカ1カウント。飲めない分は「お酒帳簿」にたまります</small></li>
+      <li>コインが0になったら<b>借金</b>できる<br><small>お酒1杯（帳簿に追加）につき ${LG.DEBT_COINS_PER_DRINK} コイン。借りたコインはそのレースで全額ベット必須</small></li>
     </ol>
     <button class="btn btn-gold" data-act="closeModal">OK</button>`);
 }
@@ -161,11 +163,9 @@ function newRace() {
   G.used = G.used.concat(G.race.horses.map((h) => h.id)).slice(-70);
   G.bets = {}; G.betPos = 0; G.results = null; G.phase = 'card';
   G.order = G.players.map((_, i) => (i + G.turn) % G.players.length);
-  // 救済金
-  G.relief = [];
-  const relief = Math.max(10, Math.round(G.init * 0.1));
-  G.players.forEach((p) => { if (p.coins <= 0) { p.coins = relief; G.relief.push(p.name); } });
-  G.reliefAmt = relief;
+  // コイン0の人はベット時に借金できる（このレースで借りた額は G.turnDebt に記録）
+  G.turnDebt = {};
+  G.relief = G.players.filter((p) => p.coins <= 0).map((p) => p.name);
 }
 
 function go() {
@@ -196,7 +196,9 @@ function hrow(h, o = {}) {
       ${o.full ? `<small class="catch">「${esc(h.catch)}」</small>` : ''}
     </span>
     <span class="h-pop p${h.pop}">${h.pop}<small>人気</small></span>
-    <span class="h-odds"><b>${h.odds.toFixed(1)}</b><small>勝率 ${(h.p * 100).toFixed(1)}%</small></span>
+    ${o.place
+    ? `<span class="h-odds"><b>${LG.betOdds(G.race, 'place', [h.num]).toFixed(1)}</b><small>複勝率 ${(LG.placeProb(G.race, h.num) * 100).toFixed(1)}%</small></span>`
+    : `<span class="h-odds"><b>${h.odds.toFixed(1)}</b><small>勝率 ${(h.p * 100).toFixed(1)}%</small>${o.full ? `<small class="pl">複勝 ${LG.betOdds(G.race, 'place', [h.num]).toFixed(1)}倍</small>` : ''}</span>`}
     ${si >= 0 ? `<span class="mark m${si + 1}">${o.n > 1 ? si + 1 + '着' : '◎'}</span>` : ''}
   </${tag}>`;
 }
@@ -215,7 +217,7 @@ function viewCard() {
   <div class="scr cardscr">
     ${raceHead()}
     <div class="rdesc">${t.desc}。単勝オッズと勝率をチェック！</div>
-    ${G.relief.length ? `<div class="notice">🆘 ${G.relief.map(esc).join('・')} に救済金 ${fmt(G.reliefAmt)} コイン！</div>` : ''}
+    ${G.relief.length ? `<div class="notice">💸 ${G.relief.map(esc).join('・')} はコイン0！ベットのとき、お酒1杯につき ${LG.DEBT_COINS_PER_DRINK} コイン借金できます</div>` : ''}
     <div class="hlist">${r.horses.map((h) => hrow(h, { full: true })).join('')}</div>
     <h3 class="sub">現在のコイン</h3>
     ${standings()}
@@ -248,18 +250,19 @@ function viewBet(keep) {
   const odds = ready ? LG.betOdds(r, B.tab, B.sel) : 0;
   const prob = ready ? LG.betProb(r, B.tab, B.sel) : 0;
   const total = B.slip.reduce((s, b) => s + b.amount, 0);
-  const guide = n === 1 ? '1着になる馬をタップ' : n === 2 ? '1着 ▶ 2着 の順にタップ' : '1着 ▶ 2着 ▶ 3着 の順にタップ';
+  const guide = B.tab === 'place' ? '2着以内に入る馬をタップ' : n === 1 ? '1着になる馬をタップ' : n === 2 ? '1着 ▶ 2着 の順にタップ' : '1着 ▶ 2着 ▶ 3着 の順にタップ';
   render(`
   <div class="scr bet">
     <header class="bethead">
       <div class="bh-l"><small>第${r.no}R ${esc(r.name)}</small><b><span class="dot" style="background:${p.color}"></span>${esc(p.name)} のベット</b></div>
       <div class="bh-r"><small>残りコイン</small><b id="remain">${fmt(remain)}</b></div>
     </header>
+    ${debtBar(idx, p)}
     <div class="tabs">${Object.keys(BT).map((k) => `<button class="tab ${B.tab === k ? 'on' : ''}" data-act="tab" data-v="${k}">${BT[k].label}</button>`).join('')}</div>
     ${n > 1 ? `<div class="modes"><button class="mode ${multi ? '' : 'on'}" data-act="mode" data-v="single">1点ずつ買う</button><button class="mode ${multi ? 'on' : ''}" data-act="mode" data-v="multi">流し・まとめ買い</button></div>` : ''}
     ${multi ? multiHtml(r, n, remain) : `
     <div class="guide">${guide}<small>${BT[B.tab].hint}</small></div>
-    <div class="hlist tight">${r.horses.map((h) => hrow(h, { pick: true, sel: B.sel, n })).join('')}</div>
+    <div class="hlist tight">${r.horses.map((h) => hrow(h, { pick: true, sel: B.sel, n, place: B.tab === 'place' })).join('')}</div>
     <div class="pickbar ${ready ? 'ready' : ''}">
       ${ready ? `<div class="pb-sel">${betText({ type: B.tab, sel: B.sel })}</div><div class="pb-odds"><b>${LG.fmtOdds(odds)}</b>倍<small>的中率 ${(prob * 100).toFixed(prob < 0.01 ? 2 : 1)}%</small></div>`
     : `<div class="pb-empty">${B.sel.length ? selBadges(B.sel) + ` あと${n - B.sel.length}頭` : '馬を選んでください'}</div>`}
@@ -280,6 +283,28 @@ function viewBet(keep) {
     <div class="sticky"><button class="btn btn-gold big" data-act="confirmBets">${B.slip.length ? `ベット確定！（${fmt(total)}コイン）` : '見（ケン）で確定'}</button></div>
   </div>`, keep);
 }
+// 借金: コイン0のとき、お酒を帳簿に足す代わりにコインを借りる。借りた分はこのレースで全額ベット必須
+const turnDebt = (idx) => (G.turnDebt && G.turnDebt[idx]) || 0;
+function debtBar(idx, p) {
+  const lock = turnDebt(idx);
+  if (p.coins - lock > 0) return '';
+  if (!lock) {
+    return `<div class="debtbar"><div><b>コインが0！</b><small>お酒1杯（帳簿に追加）で ${LG.DEBT_COINS_PER_DRINK} コイン借りられます</small></div><button class="btn btn-red sm" data-act="debtOpen">🍶 借金する</button></div>`;
+  }
+  return `<div class="debtbar on"><div><b>借金中：${fmt(lock)} コイン（${lock / LG.DEBT_COINS_PER_DRINK}杯ぶん）</b><small>借りたコインは、このレースで全額ベットしてね</small></div><button class="btn sm" data-act="debtOpen">追加で借りる</button></div>`;
+}
+function debtModal() {
+  const p = G.players[G.order[G.betPos]];
+  const v = LG.splitVodka(DB.n);
+  modal(`
+    <h2>🍶 ${esc(p.name)} の借金</h2>
+    <p class="dm-left">お酒 <b>1</b> 杯 ＝ <b>${LG.DEBT_COINS_PER_DRINK}</b> コイン</p>
+    <div class="stepper"><button data-act="debtStep" data-v="-1">−</button><div class="st-num"><b>${DB.n}</b><small>杯 飲む${v.vodka ? `（ウォッカ${v.vodka}${v.rest ? '＋' + v.rest + '杯' : ''}）` : ''}</small></div><button data-act="debtStep" data-v="1">＋</button></div>
+    <p class="dm-after">借りられるコイン: <b>${fmt(DB.n * LG.DEBT_COINS_PER_DRINK)}</b></p>
+    <p class="warn">お酒帳簿に ${DB.n}杯 がすぐ追加されます（取り消し不可）。<br>借りたコインはこのレースで全額ベット必須！</p>
+    <div class="row2"><button class="btn btn-ghost" data-act="closeModal">やめる</button><button class="btn btn-red" data-act="debtOk">${DB.n}杯で借りる！</button></div>`);
+}
+
 // 流し・フォーメーション: 各着順に置いた馬の全組み合わせ
 function combos() {
   const n = BT[B.tab].n, f = B.form, out = [];
@@ -411,7 +436,7 @@ function viewPayout(noAnim) {
   <div class="scr payout">
     <header class="bar"><h2>第${r.no}R ${esc(r.name)} 結果</h2></header>
     <section class="card res">${top3}<div class="rests">${rest}</div></section>
-    <section class="card pays"><h3>払い戻し</h3>${pay('win', o.slice(0, 1))}${pay('exacta', o.slice(0, 2))}${pay('trifecta', o.slice(0, 3))}</section>
+    <section class="card pays"><h3>払い戻し</h3>${pay('win', o.slice(0, 1))}${o.slice(0, LG.PLACE_RANKS).map((n) => pay('place', [n])).join('')}${pay('exacta', o.slice(0, 2))}${pay('trifecta', o.slice(0, 3))}</section>
     <div class="plist">
       ${G.results.map((x) => {
     const p = G.players[x.idx]; const net = x.after - x.before;
@@ -459,7 +484,7 @@ function viewFinal() {
     <div class="rank">
       ${ps.map((p, i) => `<div class="rank-row ${i === 0 ? 'top' : ''} ${p.coins === minC && d.diff > 0 ? 'bebe' : ''}" style="animation-delay:${(ps.length - i) * 0.18}s">
         <span class="rk">${medal[i] || i + 1 + '位'}</span><span class="dot" style="background:${p.color}">${esc(p.name.slice(0, 1))}</span><b>${esc(p.name)}</b>
-        ${p.coins === minC && d.diff > 0 ? '<em class="bebe-tag">ベベ</em>' : ''}<span class="rc">${fmt(p.coins)}<small> コイン</small></span></div>`).join('')}
+        ${p.debt ? `<em class="debt-tag">借金${p.debt}杯</em>` : ''}${p.coins === minC && d.diff > 0 ? '<em class="bebe-tag">ベベ</em>' : ''}<span class="rc">${fmt(p.coins)}<small> コイン</small></span></div>`).join('')}
     </div>
     <section class="card drink"><h3>🍶 ベベのお酒</h3>${drinkHtml}</section>
     <div class="stack">
@@ -582,9 +607,25 @@ const actions = {
     B.sel = []; B.amount = 0; AU.sfx.coin(1); viewBet(true);
   },
   delBet(el) { B.slip.splice(+el.dataset.v, 1); viewBet(true); },
+  debtOpen() { DB = { n: 1 }; debtModal(); },
+  debtStep(el) { DB.n = Math.max(1, Math.min(LG.DEBT_MAX_DRINKS, DB.n + +el.dataset.v)); debtModal(); },
+  debtOk() {
+    const idx = G.order[G.betPos], p = G.players[idx];
+    if (p.coins - turnDebt(idx) > 0) return closeModal();
+    const coins = DB.n * LG.DEBT_COINS_PER_DRINK;
+    ST.addDrinks(p.name, DB.n, `借金（第${G.race.no}R・${fmt(coins)}コイン）`);
+    p.coins += coins; p.debt = (p.debt || 0) + DB.n;
+    G.turnDebt = G.turnDebt || {}; G.turnDebt[idx] = turnDebt(idx) + coins;
+    save(); closeModal(); AU.sfx.coin(3); toast(`${fmt(coins)}コイン借りました。帳簿に${DB.n}杯追加！`);
+    viewBet(true);
+  },
   confirmBets() {
     const p = G.players[G.order[G.betPos]];
     const total = B.slip.reduce((s, b) => s + b.amount, 0);
+    if (turnDebt(G.order[G.betPos]) > 0 && betRemain() > 0) {
+      AU.sfx.error();
+      return toast(`借りたコインは全額ベット必須！あと ${fmt(betRemain())} コイン賭けてね`);
+    }
     const isMulti = BT[B.tab].n > 1 && B.mode === 'multi';
     const pending = isMulti ? multiTotal(combos()) > 0 : B.sel.length === BT[B.tab].n && B.amount > 0;
     modal(`<h2>${esc(p.name)} のベット確定</h2>
@@ -645,7 +686,7 @@ document.addEventListener('click', (e) => {
   AU.unlock();
   const fn = actions[el.dataset.act];
   if (!fn) return;
-  if (!['pick', 'ftog', 'addBet', 'addMulti', 'confirmOk', 'drinkOk'].includes(el.dataset.act)) AU.sfx.click();
+  if (!['pick', 'ftog', 'addBet', 'addMulti', 'confirmOk', 'drinkOk', 'debtOk'].includes(el.dataset.act)) AU.sfx.click();
   fn(el, e);
 });
 document.addEventListener('input', (e) => {

@@ -175,7 +175,17 @@ export function drawOrder(race) {
 
 const horseOf = (race, num) => race.horses.find((h) => h.num === num);
 
+// 複勝: 7頭立てなので2着以内（JRAと同じく7頭以下は2着まで）
+export const PLACE_RANKS = 2;
+export function placeProb(race, num) {
+  const me = horseOf(race, num);
+  let P = me.p;
+  for (const h of race.horses) if (h.num !== num) P += h.p * (me.p / (1 - h.p));
+  return P;
+}
+
 export function betProb(race, type, sel) {
+  if (type === 'place') return placeProb(race, sel[0]);
   const p = sel.map((n) => horseOf(race, n).p);
   if (type === 'win') return p[0];
   if (type === 'exacta') return p[0] * (p[1] / (1 - p[0]));
@@ -184,17 +194,21 @@ export function betProb(race, type, sel) {
 
 export function betOdds(race, type, sel) {
   if (type === 'win') return horseOf(race, sel[0]).odds;
+  // 複勝は堅い馬だと 1.0倍（元返し）もある
+  if (type === 'place') return Math.max(1.0, floor1(RETURN_RATE / placeProb(race, sel[0])));
   const o = floor1(RETURN_RATE / betProb(race, type, sel));
   return Math.min(EXOTIC_CAP, Math.max(1.1, o));
 }
 
 export const BET_TYPES = {
   win: { label: '単勝', n: 1, hint: '1着を当てる' },
+  place: { label: '複勝', n: 1, hint: '2着以内に入れば的中（7頭立てなので2着まで）' },
   exacta: { label: '馬単', n: 2, hint: '1着→2着を順番どおりに当てる' },
   trifecta: { label: '3連単', n: 3, hint: '1着→2着→3着を順番どおりに当てる' },
 };
 
 export function isHit(bet, order) {
+  if (bet.type === 'place') return order.slice(0, PLACE_RANKS).includes(bet.sel[0]);
   const n = BET_TYPES[bet.type].n;
   for (let i = 0; i < n; i++) if (bet.sel[i] !== order[i]) return false;
   return true;
@@ -216,7 +230,9 @@ export function settle(race, betsByPlayer, players) {
 export function fmtOdds(o) { return o.toFixed(1); }
 
 // お酒計算: (トップ - ベベ) / 50 を切り捨て。3杯 = ウォッカ1
-export const COINS_PER_DRINK = 50;
+export const COINS_PER_DRINK = 300;
+export const DEBT_COINS_PER_DRINK = 150;   // 借金: お酒1杯で借りられるコイン
+export const DEBT_MAX_DRINKS = 10;         // 1回に借りられる上限（杯）
 export const DRINKS_PER_VODKA = 3;
 export function calcDrinks(players) {
   const max = Math.max(...players.map((p) => p.coins));
